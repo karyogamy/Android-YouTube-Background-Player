@@ -24,9 +24,11 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
+import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.RemoteException;
+import android.support.annotation.Nullable;
 import android.support.v4.media.RatingCompat;
 import android.support.v4.media.session.MediaControllerCompat;
 import android.support.v4.media.session.MediaSessionCompat;
@@ -66,6 +68,7 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
     public static final String ACTION_PREVIOUS = "action_previous";
     public static final String ACTION_STOP = "action_stop";
 
+    private WifiManager.WifiLock mWifiLock;
     private MediaPlayer mMediaPlayer;
     private MediaSessionCompat mSession;
     private MediaControllerCompat mController;
@@ -93,6 +96,10 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
     public void onCreate() {
         super.onCreate();
         videoItem = new YouTubeVideo();
+
+        mWifiLock = ((WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE))
+                .createWifiLock(WifiManager.WIFI_MODE_FULL, "tub_lock");
+
         mMediaPlayer = new MediaPlayer();
         mMediaPlayer.setOnCompletionListener(this);
         mMediaPlayer.setOnPreparedListener(this);
@@ -457,6 +464,8 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
         mMediaPlayer.stop();
         mMediaPlayer.release();
         mMediaPlayer = null;
+
+        if(mWifiLock.isHeld()) mWifiLock.release();
     }
 
     /**
@@ -465,48 +474,92 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
      * @param ytFiles Array of available streams
      * @return Audio stream with highest bitrate
      */
+    @Nullable @Deprecated
     private YtFile getBestStream(SparseArray<YtFile> ytFiles) {
-        if (ytFiles.get(141) != null) {
-            return ytFiles.get(141); //mp4a - stereo, 44.1 KHz 256 Kbps
-        } else if (ytFiles.get(251) != null) {
-            return ytFiles.get(251); //webm - stereo, 48 KHz 160 Kbps
-        } else if (ytFiles.get(140) != null) {
-            return ytFiles.get(140);  //mp4a - stereo, 44.1 KHz 128 Kbps
+        // android.os.Debug.waitForDebugger();
+        final int[] candidateItags = {251, 140, 171, 250, 249, 22, 43, 18, 36, 17};
+
+        for (int itag: candidateItags) {
+            final YtFile ytFile = ytFiles.get( itag );
+            if ( ytFile != null ) return ytFile;
         }
-        return ytFiles.get(17); //mp4 - stereo, 44.1 KHz 96-100 Kbps
+
+        Log.e( TAG, "Unable to find audio stream from available candidates." );
+        return null;
+    }
+
+    @Nullable
+    private YtFile findBestStream(SparseArray<YtFile> ytFiles) {
+        YtFile candidate = null;
+
+        for (int i = 0; i < ytFiles.size(); i++) {
+            final int index = ytFiles.keyAt(i);
+            final YtFile file = ytFiles.get(index);
+
+            if ( file == null ) continue;
+            if ( candidate == null ) candidate = file;
+
+            final int fileBitrate = file.getFormat().getAudioBitrate();
+            final int candidateBitrate = candidate.getFormat().getAudioBitrate();
+            if ( fileBitrate > candidateBitrate ) candidate = file;
+        }
+
+        if ( candidate == null ) {
+            Log.e( TAG, "Unable to find audio stream from available candidates." );
+        }
+
+        return candidate;
     }
 
     /**
      * Extracts link from youtube video ID, so mediaPlayer can play it
      */
     private void extractUrlAndPlay() {
-        String youtubeLink = Config.YOUTUBE_BASE_URL + videoItem.getId();
+        final String youtubeLink = Config.YOUTUBE_BASE_URL + videoItem.getId();
+
         new YouTubeExtractor(this) {
             @Override
             protected void onExtractionComplete(SparseArray<YtFile> ytFiles, VideoMeta videoMeta) {
-                if (ytFiles == null) {
-                    // Something went wrong we got no urls. Always check this.
-                    Toast.makeText(YTApplication.getAppContext(), R.string.failed_playback,
-                            Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                YtFile ytFile = getBestStream(ytFiles);
-                try {
-                    if (mMediaPlayer != null) {
-                        mMediaPlayer.reset();
-                        mMediaPlayer.setDataSource(ytFile.getUrl());
-                        mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-                        mMediaPlayer.prepare();
-                        mMediaPlayer.start();
-
-                        Toast.makeText(YTApplication.getAppContext(), videoMeta.getTitle(),
-                                Toast.LENGTH_SHORT).show();
-                    }
-                } catch (IOException io) {
-                    io.printStackTrace();
-                }
+                onVideoStart( ytFiles );
             }
         }.execute(youtubeLink);
+    }
+
+    private void onVideoStart( SparseArray<YtFile> ytFiles ) {
+        YtFile ytFile;
+        if ( ytFiles == null || ( ytFile = findBestStream(ytFiles) ) == null ) {
+            // Something went wrong we got no urls. Always check this.
+            Toast.makeText(
+                    YTApplication.getAppContext(),
+                    R.string.failed_playback,
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        final String id =      videoItem.getId();
+        final String title =   videoItem.getTitle();
+        final int    bitrate = ytFile.getFormat().getAudioBitrate();
+
+        try {
+            final String message = "(PL1) Starting: " + title + "(" + id+ ")" + ", quality: " + bitrate + "kbps.";
+            Log.d( TAG, message );
+            if (mMediaPlayer != null) {
+                mMediaPlayer.reset();
+                mMediaPlayer.setDataSource(ytFile.getUrl());
+                mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                mMediaPlayer.prepare();
+
+                mWifiLock.acquire();
+
+                mMediaPlayer.start();
+
+                Toast.makeText(YTApplication.getAppContext(), message, Toast.LENGTH_SHORT).show();
+            }
+        } catch (IOException io) {
+            io.printStackTrace();
+        }
     }
 
     @Override

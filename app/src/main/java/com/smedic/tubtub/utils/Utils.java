@@ -1,5 +1,6 @@
 package com.smedic.tubtub.utils;
 
+import android.support.annotation.Nullable;
 import android.util.Log;
 
 import com.google.api.services.youtube.model.SearchResult;
@@ -7,6 +8,8 @@ import com.smedic.tubtub.model.YouTubeVideo;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Helper methods
@@ -127,4 +130,24 @@ public class Utils {
         return contentDetails.toString();
     }
 
+    /**
+     * Extracts id from youtube share intent url
+     *
+     * @param ytUrl youtube url containing the id, must be in youtu.be form
+     * @return the id for that url
+     * */
+    @Nullable
+    public static String extractId(String ytUrl) {
+        if (ytUrl == null) return null;
+        String vId = null;
+
+        Pattern pattern = Pattern.compile(
+                "^https?://.*(?:youtu.be/|v/|u/\\w/|embed/|watch?v=)([^#&?]*).*$",
+                Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(ytUrl);
+
+        if ( matcher.matches() ) { vId = matcher.group(1); }
+
+        return vId;
+    }
 }

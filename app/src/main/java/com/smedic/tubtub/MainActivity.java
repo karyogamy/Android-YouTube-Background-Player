@@ -65,6 +65,7 @@ import com.smedic.tubtub.model.ItemType;
 import com.smedic.tubtub.model.YouTubeVideo;
 import com.smedic.tubtub.utils.Config;
 import com.smedic.tubtub.utils.NetworkConf;
+import com.smedic.tubtub.utils.Utils;
 import com.smedic.tubtub.youtube.SuggestionsLoader;
 
 import java.util.ArrayList;
@@ -223,14 +224,26 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
      * @param intent
      */
     private void handleIntent(Intent intent) {
+        final String action = intent.getAction();
+        final String type = intent.getType();
 
-        if (Intent.ACTION_SEARCH.equals(intent.getAction())) {
+        if (Intent.ACTION_SEARCH.equals( action )) {
             String query = intent.getStringExtra(SearchManager.QUERY);
 
             viewPager.setCurrentItem(2, true); //switch to search fragment
 
             if (searchFragment != null) {
                 searchFragment.searchQuery(query);
+            }
+        } else if ( Intent.ACTION_SEND.equals( action ) ) {
+            final String url = intent.getStringExtra(Intent.EXTRA_TEXT);
+            Log.d( TAG, "Intent received: " + url );
+
+            viewPager.setCurrentItem(2, true); //switch to search fragment
+
+            final String id = Utils.extractId( url );
+            if ( id != null && searchFragment != null ) {
+                searchFragment.searchQuery(id);
             }
         }
     }
