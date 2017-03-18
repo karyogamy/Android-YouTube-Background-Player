@@ -51,7 +51,6 @@ public class VideosAdapter extends RecyclerView.Adapter<VideosAdapter.ViewHolder
         super();
         this.list = list;
         this.context = context;
-        this.itemChecked = new boolean[(int) Config.NUMBER_OF_VIDEOS_RETURNED];
     }
 
     @Override
@@ -63,7 +62,12 @@ public class VideosAdapter extends RecyclerView.Adapter<VideosAdapter.ViewHolder
 
     @Override
     public void onBindViewHolder(ViewHolder holder, final int position) {
+        /* This needs to be created on each view change as different view contains
+        * different number of videos */
+        this.itemChecked = new boolean[list.size()];
+
         final YouTubeVideo video = list.get(position);
+
         if (YouTubeSqlDb.getInstance().videos(YouTubeSqlDb.VIDEOS_TYPE.FAVORITE).checkIfExists(video.getId())) {
             itemChecked[position] = true;
         } else {

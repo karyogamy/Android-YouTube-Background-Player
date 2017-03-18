@@ -15,7 +15,6 @@
  */
 package com.smedic.tubtub.utils;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -29,10 +28,10 @@ import android.support.v7.app.AlertDialog;
  */
 public class NetworkConf {
 
-    private Activity activity;
+    private Context context;
 
-    public NetworkConf(Activity activity){
-        this.activity = activity;
+    public NetworkConf(Context context){
+        this.context = context;
     }
     /**
      * Checks whether internet connection is available or not
@@ -40,21 +39,23 @@ public class NetworkConf {
      */
     public boolean isNetworkAvailable() {
         ConnectivityManager connectivityManager
-                = (ConnectivityManager) activity.getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
-        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
-    }
-
-    public static boolean isNetworkAvailable(Context context) {
-        ConnectivityManager connectivityManager
                 = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
 
+    public int networkType() {
+        final ConnectivityManager connectivityManager = (ConnectivityManager)
+                context.getSystemService(Context.CONNECTIVITY_SERVICE);
+
+        final NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+
+        return (activeNetworkInfo == null) ? ConnectivityManager.TYPE_DUMMY : activeNetworkInfo.getType();
+    }
+
     public void createNetErrorDialog() {
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setMessage("You need a network connection to use this application. Please turn on mobile network or Wi-Fi in Settings.")
                 .setTitle("Unable to connect")
                 .setCancelable(false)
@@ -62,14 +63,14 @@ public class NetworkConf {
                         new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface dialog, int id) {
                                 Intent i = new Intent(Settings.ACTION_SETTINGS);
-                                activity.startActivity(i);
+                                context.startActivity(i);
                             }
                         }
                 )
                 .setNegativeButton("Cancel",
                         new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface dialog, int id) {
-                                //activity.finish();
+                                //context.finish();
                             }
                         }
                 );

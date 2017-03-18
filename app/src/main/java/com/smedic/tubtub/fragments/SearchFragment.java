@@ -58,6 +58,8 @@ public class SearchFragment extends BaseFragment implements ItemEventsListener<Y
     private OnItemSelected itemSelected;
     private OnFavoritesSelected onFavoritesSelected;
 
+    private String queryInLine;
+
     public SearchFragment() {
         // Required empty public constructor
     }
@@ -92,6 +94,12 @@ public class SearchFragment extends BaseFragment implements ItemEventsListener<Y
     }
 
     @Override
+    public void onActivityCreated(Bundle savedInstanceState) {
+        super.onActivityCreated( savedInstanceState );
+        searchQuery( queryInLine );
+    }
+
+    @Override
     public void onAttach(Context context) {
         super.onAttach(context);
 
@@ -116,6 +124,15 @@ public class SearchFragment extends BaseFragment implements ItemEventsListener<Y
      * @param query
      */
     public void searchQuery(final String query) {
+        /* Never assume query param is valid string */
+        if (query == null) return;
+
+        /* If this activity doesn't exist, wait until it gets created */
+        if (getActivity() == null) {
+            queryInLine = query;
+            return;
+        }
+
         //check network connectivity
         if (!networkConf.isNetworkAvailable()) {
             networkConf.createNetErrorDialog();

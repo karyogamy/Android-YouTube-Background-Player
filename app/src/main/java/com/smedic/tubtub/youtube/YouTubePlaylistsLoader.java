@@ -6,8 +6,6 @@ import android.util.Log;
 
 import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException;
 import com.google.api.services.youtube.YouTube;
-import com.google.api.services.youtube.model.Channel;
-import com.google.api.services.youtube.model.ChannelListResponse;
 import com.google.api.services.youtube.model.Playlist;
 import com.google.api.services.youtube.model.PlaylistListResponse;
 import com.smedic.tubtub.model.YouTubePlaylist;
@@ -19,8 +17,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import static com.smedic.tubtub.youtube.YouTubeSingleton.getCredential;
-import static com.smedic.tubtub.youtube.YouTubeSingleton.getYouTubeWithCredentials;
+import static com.smedic.tubtub.youtube.YouTubeSingleton.getYouTube;
 
 /**
  * Created by smedic on 13.2.17..
@@ -29,7 +26,7 @@ import static com.smedic.tubtub.youtube.YouTubeSingleton.getYouTubeWithCredentia
 public class YouTubePlaylistsLoader extends AsyncTaskLoader<List<YouTubePlaylist>> {
 
     private static final String TAG = "SMEDIC";
-    private YouTube youtube = getYouTubeWithCredentials();
+    private YouTube youtube = getYouTube();
 
     public YouTubePlaylistsLoader(Context context) {
         super(context);
@@ -37,26 +34,14 @@ public class YouTubePlaylistsLoader extends AsyncTaskLoader<List<YouTubePlaylist
 
     @Override
     public List<YouTubePlaylist> loadInBackground() {
-
-        if (getCredential().getSelectedAccountName() == null) {
-            Log.d(TAG, "loadInBackground: account not picked!");
-            return Collections.emptyList();
-        }
-
         try {
-            ChannelListResponse channelListResponse = youtube.channels().list("snippet").setMine(true).execute();
+            YouTube.Playlists.List searchList = youtube.playlists().list("id,snippet,contentDetails,status");
 
-            List<Channel> channelList = channelListResponse.getItems();
-            if (channelList.isEmpty()) {
-                Log.d(TAG, "Can't find user channel");
-            }
-            Channel channel = channelList.get(0);
+            searchList.setId("PL08F79EB0B416E4BE"); // testing only
 
-            YouTube.Playlists.List searchList = youtube.playlists().list("id,snippet,contentDetails,status").setKey(Config.YOUTUBE_API_KEY);
-
-            searchList.setChannelId(channel.getId());
+            searchList.setKey(Config.YOUTUBE_API_KEY);
             searchList.setFields("items(id,snippet/title,snippet/thumbnails/default/url,contentDetails/itemCount,status)");
-            searchList.setMaxResults(Config.NUMBER_OF_VIDEOS_RETURNED);
+            searchList.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
 
             PlaylistListResponse playListResponse = searchList.execute();
             List<Playlist> playlists = playListResponse.getItems();

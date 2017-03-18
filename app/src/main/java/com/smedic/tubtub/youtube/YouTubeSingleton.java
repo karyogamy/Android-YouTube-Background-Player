@@ -49,11 +49,11 @@ public class YouTubeSingleton {
                 .build();
     }
 
-    public static YouTube getYouTube() {
+    static YouTube getYouTube() {
         return youTube;
     }
 
-    public static YouTube getYouTubeWithCredentials() {
+    static YouTube getYouTubeWithCredentials() {
         return youTubeWithCredentials;
     }
 

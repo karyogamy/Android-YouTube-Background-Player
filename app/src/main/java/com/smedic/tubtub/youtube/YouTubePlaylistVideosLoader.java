@@ -43,23 +43,20 @@ public class YouTubePlaylistVideosLoader extends AsyncTaskLoader<List<YouTubeVid
 
         List<PlaylistItem> playlistItemList = new ArrayList<>();
         List<YouTubeVideo> playlistItems = new ArrayList<>();
-        String nextToken = "";
+
         // Retrieve the playlist of the channel's uploaded videos.
         YouTube.PlaylistItems.List playlistItemRequest;
         try {
             playlistItemRequest = youtube.playlistItems().list("id,contentDetails,snippet");
+
             playlistItemRequest.setPlaylistId(playlistId);
-            playlistItemRequest.setMaxResults(Config.NUMBER_OF_VIDEOS_RETURNED);
+            playlistItemRequest.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
             playlistItemRequest.setFields("items(contentDetails/videoId,snippet/title," +
                     "snippet/thumbnails/default/url),nextPageToken");
-            // Call API one or more times to retrieve all items in the list. As long as API
-            // response returns a nextPageToken, there are still more items to retrieve.
-            //do {
-            //playlistItemRequest.setPageToken(nextToken);
-            PlaylistItemListResponse playlistItemResult = playlistItemRequest.execute();
+            playlistItemRequest.setKey(Config.YOUTUBE_API_KEY);
+
+            final PlaylistItemListResponse playlistItemResult = playlistItemRequest.execute();
             playlistItemList.addAll(playlistItemResult.getItems());
-            //nextToken = playlistItemResult.getNextPageToken();
-            //} while (nextToken != null);
 
             Log.d(TAG, "all items size: " + playlistItemList.size());
         } catch (GoogleJsonResponseException e) {

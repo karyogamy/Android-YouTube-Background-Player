@@ -24,6 +24,8 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -42,6 +44,7 @@ import android.widget.Toast;
 import com.smedic.tubtub.model.ItemType;
 import com.smedic.tubtub.model.YouTubeVideo;
 import com.smedic.tubtub.utils.Config;
+import com.smedic.tubtub.utils.NetworkConf;
 import com.squareup.picasso.Picasso;
 import com.squareup.picasso.Target;
 
@@ -73,6 +76,8 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
     private MediaSessionCompat mSession;
     private MediaControllerCompat mController;
 
+    private NetworkConf network;
+
     private ItemType mediaType = ItemType.YOUTUBE_MEDIA_NONE;
 
     private YouTubeVideo videoItem;
@@ -96,6 +101,8 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
     public void onCreate() {
         super.onCreate();
         videoItem = new YouTubeVideo();
+
+        network = new NetworkConf( getApplicationContext() );
 
         mWifiLock = ((WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE))
                 .createWifiLock(WifiManager.WIFI_MODE_FULL, "tub_lock");
@@ -465,50 +472,43 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
         mMediaPlayer.release();
         mMediaPlayer = null;
 
-        if(mWifiLock.isHeld()) mWifiLock.release();
+        if( mWifiLock.isHeld() ) mWifiLock.release();
     }
 
     /**
-     * Get the best available audio stream
+     * Get the best available audio stream given connection type.
+     * If the user is on wifi, then provide the best quality audio from video sources, if available.
+     * Otherwise, use DASH audio streams to save on mobile data.
+     *
+     * @TODO make source configurable by the user.
      *
      * @param ytFiles Array of available streams
      * @return Audio stream with highest bitrate
      */
-    @Nullable @Deprecated
-    private YtFile getBestStream(SparseArray<YtFile> ytFiles) {
-        // android.os.Debug.waitForDebugger();
-        final int[] candidateItags = {251, 140, 171, 250, 249, 22, 43, 18, 36, 17};
+    @Nullable
+    private YtFile findBestStream(SparseArray<YtFile> ytFiles) {
+        final long start = System.nanoTime();
 
-        for (int itag: candidateItags) {
+        final int[] mobileAllowed = { 251, 140, 171, 18, 250, 249, 36, 17 };
+        final int[] wifiAllowed = { 22, 251, 140, 171, 43, 18, 250, 249, 36, 17 };
+
+        final int[] allowedItags = network.networkType() == ConnectivityManager.TYPE_WIFI ?
+                wifiAllowed : mobileAllowed;
+
+        for (int itag: allowedItags) {
             final YtFile ytFile = ytFiles.get( itag );
-            if ( ytFile != null ) return ytFile;
+            if ( ytFile != null ) {
+                final long end = System.nanoTime();
+                final long cost = end - start;
+                Log.i( TAG, "Found best stream with itag " + ytFile.getFormat().getItag() +
+                        " in " + cost / 1000000.0 + "ms." );
+
+                return ytFile;
+            }
         }
 
         Log.e( TAG, "Unable to find audio stream from available candidates." );
         return null;
-    }
-
-    @Nullable
-    private YtFile findBestStream(SparseArray<YtFile> ytFiles) {
-        YtFile candidate = null;
-
-        for (int i = 0; i < ytFiles.size(); i++) {
-            final int index = ytFiles.keyAt(i);
-            final YtFile file = ytFiles.get(index);
-
-            if ( file == null ) continue;
-            if ( candidate == null ) candidate = file;
-
-            final int fileBitrate = file.getFormat().getAudioBitrate();
-            final int candidateBitrate = candidate.getFormat().getAudioBitrate();
-            if ( fileBitrate > candidateBitrate ) candidate = file;
-        }
-
-        if ( candidate == null ) {
-            Log.e( TAG, "Unable to find audio stream from available candidates." );
-        }
-
-        return candidate;
     }
 
     /**
@@ -543,7 +543,7 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
         final int    bitrate = ytFile.getFormat().getAudioBitrate();
 
         try {
-            final String message = "(PL1) Starting: " + title + "(" + id+ ")" + ", quality: " + bitrate + "kbps.";
+            final String message = "Starting: " + title + "(" + id+ ")" + ", quality: " + bitrate + "kbps.";
             Log.d( TAG, message );
             if (mMediaPlayer != null) {
                 mMediaPlayer.reset();
@@ -551,7 +551,7 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
                 mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
                 mMediaPlayer.prepare();
 
-                mWifiLock.acquire();
+                if ( !mWifiLock.isHeld() ) mWifiLock.acquire();
 
                 mMediaPlayer.start();
 

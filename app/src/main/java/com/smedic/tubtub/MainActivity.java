@@ -139,6 +139,9 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
         loadColor();
 
         requestPermissions();
+
+        /* If a share intent is received when app is not open, process it on create */
+        handleIntent( getIntent() );
     }
 
     /**
@@ -153,31 +156,13 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
      */
     @AfterPermissionGranted(PERMISSIONS)
     private void requestPermissions() {
-        String[] perms = {Manifest.permission.GET_ACCOUNTS, Manifest.permission.READ_PHONE_STATE};
-        if (EasyPermissions.hasPermissions(this, perms)) {
-            // Already have permission, do the thing
-            if (EasyPermissions.hasPermissions(this, Manifest.permission.GET_ACCOUNTS)) {
-                String accountName = getPreferences(Context.MODE_PRIVATE).getString(PREF_ACCOUNT_NAME, null);
-                if (accountName != null) {
-                    getCredential().setSelectedAccountName(accountName);
-                } else {
-                    // Start a dialog from which the user can choose an account
-                    startActivityForResult(
-                            getCredential().newChooseAccountIntent(),
-                            REQUEST_ACCOUNT_PICKER);
-                }
-            } else {
-                // Request the GET_ACCOUNTS permission via a user dialog
-                EasyPermissions.requestPermissions(
-                        this,
-                        "This app needs to access your Google account (via Contacts).",
-                        REQUEST_PERMISSION_GET_ACCOUNTS,
-                        Manifest.permission.GET_ACCOUNTS);
-            }
-        } else {
+        final String[] perms = {
+                Manifest.permission.WAKE_LOCK
+        };
+
+        if (!EasyPermissions.hasPermissions(this, perms)) {
             // Do not have permissions, request them now
-            EasyPermissions.requestPermissions(this, getString(R.string.all_permissions_request),
-                    PERMISSIONS, perms);
+            EasyPermissions.requestPermissions(this, getString(R.string.all_permissions_request), PERMISSIONS, perms);
         }
     }
 
@@ -225,7 +210,6 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
      */
     private void handleIntent(Intent intent) {
         final String action = intent.getAction();
-        final String type = intent.getType();
 
         if (Intent.ACTION_SEARCH.equals( action )) {
             String query = intent.getStringExtra(SearchManager.QUERY);
@@ -243,7 +227,7 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
 
             final String id = Utils.extractId( url );
             if ( id != null && searchFragment != null ) {
-                searchFragment.searchQuery(id);
+                searchFragment.searchQuery( id );
             }
         }
     }

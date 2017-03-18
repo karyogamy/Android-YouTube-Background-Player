@@ -45,14 +45,14 @@ public class YouTubeVideosLoader extends AsyncTaskLoader<List<YouTubeVideo>> {
 
             searchList.setKey(Config.YOUTUBE_API_KEY);
             searchList.setType("video"); //TODO ADD PLAYLISTS SEARCH
-            searchList.setMaxResults(Config.NUMBER_OF_VIDEOS_RETURNED);
+            searchList.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
             searchList.setFields("items(id/videoId,snippet/title,snippet/thumbnails/default/url)");
+            searchList.setQ(keywords);
 
             videosList.setKey(Config.YOUTUBE_API_KEY);
             videosList.setFields("items(contentDetails/duration,statistics/viewCount)");
 
             //search
-            searchList.setQ(keywords);
             SearchListResponse searchListResponse = searchList.execute();
             List<SearchResult> searchResults = searchListResponse.getItems();
 
