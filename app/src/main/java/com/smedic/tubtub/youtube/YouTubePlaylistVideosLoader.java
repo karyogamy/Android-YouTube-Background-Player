@@ -120,7 +120,7 @@ public class YouTubePlaylistVideosLoader extends AsyncTaskLoader<List<YouTubeVid
             //video info
             if (videoItem != null) {
                 String isoTime = videoItem.getContentDetails().getDuration();
-                String time = Utils.convertISO8601DurationToNormalTime(isoTime);
+                String time = Utils.convertDuration(isoTime);
                 youTubeVideo.setDuration(time);
             } else {
                 youTubeVideo.setDuration("NA");

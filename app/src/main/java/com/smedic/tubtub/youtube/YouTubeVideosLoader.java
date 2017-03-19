@@ -97,7 +97,7 @@ public class YouTubeVideosLoader extends AsyncTaskLoader<List<YouTubeVideo>> {
                 String viewsFormatted = NumberFormat.getIntegerInstance().format(viewsNumber) + " views";
                 item.setViewCount(viewsFormatted);
                 String isoTime = video.getContentDetails().getDuration();
-                String time = Utils.convertISO8601DurationToNormalTime(isoTime);
+                String time = Utils.convertDuration(isoTime);
                 item.setDuration(time);
 
                 //add to the list

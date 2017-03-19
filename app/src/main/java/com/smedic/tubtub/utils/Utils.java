@@ -3,14 +3,16 @@ package com.smedic.tubtub.utils;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
-import com.google.api.services.youtube.model.SearchResult;
 import com.smedic.tubtub.model.YouTubeVideo;
+
+import org.joda.time.Period;
+import org.joda.time.format.PeriodFormatter;
+import org.joda.time.format.PeriodFormatterBuilder;
 
 import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 /**
  * Helper methods
  * Created by smedic on 4.2.16..
@@ -22,48 +24,16 @@ public class Utils {
     /**
      * Converting ISO8601 formatted duration to normal readable time
      */
-    public static String convertISO8601DurationToNormalTime(String isoTime) {
-        String formattedTime = new String();
+    public static String convertDuration(String isoTime) {
+        final String COLON = ":";
+        final Period duration = Period.parse( isoTime );
+        final PeriodFormatter formatter = new PeriodFormatterBuilder()
+                .appendDays().appendSeparator(COLON)
+                .appendHours().minimumPrintedDigits(2).appendSeparator(COLON)
+                .appendMinutes().minimumPrintedDigits(2).appendSeparator(COLON)
+                .appendSeconds().minimumPrintedDigits(2).toFormatter();
 
-        if (isoTime.contains("H") && isoTime.contains("M") && isoTime.contains("S")) {
-            String hours = isoTime.substring(isoTime.indexOf('T') + 1, isoTime.indexOf('H'));
-            String minutes = isoTime.substring(isoTime.indexOf('H') + 1, isoTime.indexOf('M'));
-            String seconds = isoTime.substring(isoTime.indexOf('M') + 1, isoTime.indexOf('S'));
-            formattedTime = hours + ":" + formatTo2Digits(minutes) + ":" + formatTo2Digits(seconds);
-        } else if (!isoTime.contains("H") && isoTime.contains("M") && isoTime.contains("S")) {
-            String minutes = isoTime.substring(isoTime.indexOf('T') + 1, isoTime.indexOf('M'));
-            String seconds = isoTime.substring(isoTime.indexOf('M') + 1, isoTime.indexOf('S'));
-            formattedTime = minutes + ":" + formatTo2Digits(seconds);
-        } else if (isoTime.contains("H") && !isoTime.contains("M") && isoTime.contains("S")) {
-            String hours = isoTime.substring(isoTime.indexOf('T') + 1, isoTime.indexOf('H'));
-            String seconds = isoTime.substring(isoTime.indexOf('H') + 1, isoTime.indexOf('S'));
-            formattedTime = hours + ":00:" + formatTo2Digits(seconds);
-        } else if (isoTime.contains("H") && isoTime.contains("M") && !isoTime.contains("S")) {
-            String hours = isoTime.substring(isoTime.indexOf('T') + 1, isoTime.indexOf('H'));
-            String minutes = isoTime.substring(isoTime.indexOf('H') + 1, isoTime.indexOf('M'));
-            formattedTime = hours + ":" + formatTo2Digits(minutes) + ":00";
-        } else if (!isoTime.contains("H") && !isoTime.contains("M") && isoTime.contains("S")) {
-            String seconds = isoTime.substring(isoTime.indexOf('T') + 1, isoTime.indexOf('S'));
-            formattedTime = "0:" + formatTo2Digits(seconds);
-        } else if (!isoTime.contains("H") && isoTime.contains("M") && !isoTime.contains("S")) {
-            String minutes = isoTime.substring(isoTime.indexOf('T') + 1, isoTime.indexOf('M'));
-            formattedTime = minutes + ":00";
-        } else if (isoTime.contains("H") && !isoTime.contains("M") && !isoTime.contains("S")) {
-            String hours = isoTime.substring(isoTime.indexOf('T') + 1, isoTime.indexOf('H'));
-            formattedTime = hours + ":00:00";
-        }
-
-        return formattedTime;
-    }
-
-    /**
-     * Makes values consist of 2 letters "01"
-     */
-    private static String formatTo2Digits(String str) {
-        if (str.length() < 2) {
-            str = "0" + str;
-        }
-        return str;
+        return formatter.print( duration.normalizedStandard() );
     }
 
     /**
