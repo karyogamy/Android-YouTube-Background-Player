@@ -115,12 +115,12 @@ public class Utils {
         String vId = null;
 
         final Pattern pattern = Pattern.compile(
-                "^https?://.*(?:youtu.be/|v/|u/\\w/|embed/|watch?v=)([^#&?]*).*$",
+                "^.*(youtu.be\\/|list=)([^#\\&\\?]*).*",
                 Pattern.CASE_INSENSITIVE);
         final Matcher matcher = pattern.matcher(ytUrl);
 
         if ( matcher.matches() ) {
-            vId = matcher.group(1);
+            vId = matcher.group(2);
 
             /* Since video search q parameter has other purposes for '-' and '|',
              * id search under q should be enclosed in double quotes. */

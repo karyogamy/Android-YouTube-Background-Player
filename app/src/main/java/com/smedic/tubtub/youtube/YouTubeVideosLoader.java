@@ -1,6 +1,8 @@
 package com.smedic.tubtub.youtube;
 
 import android.content.Context;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.content.AsyncTaskLoader;
 import android.util.Log;
 
@@ -11,12 +13,14 @@ import com.google.api.services.youtube.model.Video;
 import com.google.api.services.youtube.model.VideoListResponse;
 import com.smedic.tubtub.model.YouTubeVideo;
 import com.smedic.tubtub.utils.Config;
+import com.smedic.tubtub.utils.SearchType;
 import com.smedic.tubtub.utils.Utils;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static com.smedic.tubtub.youtube.YouTubeSingleton.getYouTube;
@@ -29,10 +33,38 @@ public class YouTubeVideosLoader extends AsyncTaskLoader<List<YouTubeVideo>> {
 
     private YouTube youtube = getYouTube();
     private String keywords;
+    private SearchType searchType;
 
-    public YouTubeVideosLoader(Context context, String keywords) {
+    public YouTubeVideosLoader(final Context context,
+                               @NonNull final String keywords,
+                               @NonNull final SearchType type) {
         super(context);
         this.keywords = keywords;
+        this.searchType = type;
+    }
+
+    @Nullable
+    private String ids() throws IOException {
+        switch(searchType) {
+            case BY_QUERY:
+                //search
+                YouTube.Search.List searchList = youtube.search().list("id");
+                searchList.setKey(Config.YOUTUBE_API_KEY);
+                searchList.setType("video");
+                searchList.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
+                searchList.setFields("items(id/videoId)");
+                searchList.setQ(keywords);
+
+                final SearchListResponse searchListResponse = searchList.execute();
+                final List<SearchResult> searchResults = searchListResponse.getItems();
+
+                return concatenateIDs(searchResults);
+
+            case BY_ID:
+                return keywords;
+            default:
+                return keywords;
+        }
     }
 
     @Override
@@ -40,44 +72,33 @@ public class YouTubeVideosLoader extends AsyncTaskLoader<List<YouTubeVideo>> {
 
         ArrayList<YouTubeVideo> items = new ArrayList<>();
         try {
-            YouTube.Search.List searchList = youtube.search().list("id,snippet");
-            YouTube.Videos.List videosList = youtube.videos().list("id,contentDetails,statistics");
-
-            searchList.setKey(Config.YOUTUBE_API_KEY);
-            searchList.setType("video");
-            searchList.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
-            searchList.setFields("items(id/videoId,snippet/title,snippet/thumbnails/default/url)");
-            searchList.setQ(keywords);
-
-            videosList.setKey(Config.YOUTUBE_API_KEY);
-            videosList.setFields("items(contentDetails/duration,statistics/viewCount)");
-
-            //search
-            SearchListResponse searchListResponse = searchList.execute();
-            List<SearchResult> searchResults = searchListResponse.getItems();
+            final String id = ids();
+            if ( id == null || id.isEmpty() ) return Collections.emptyList();
 
             //find video list
-            videosList.setId(concatenateIDs(searchResults));  //save all ids from searchList list in order to find video list
-            VideoListResponse resp = videosList.execute();
-            List<Video> videoResults = resp.getItems();
+            YouTube.Videos.List videosList = youtube.videos().list("id,snippet,contentDetails,statistics");
+            videosList.setKey(Config.YOUTUBE_API_KEY);
+            videosList.setFields("items(id,snippet/title,snippet/thumbnails/default/url,contentDetails/duration,statistics/viewCount)");
+            //save all ids from searchList list in order to find video list
+            videosList.setId( id );
+
+            final VideoListResponse resp = videosList.execute();
+            final List<Video> videoResults = resp.getItems();
+
             //make items for displaying in listView
-            for (int i = 0; i < searchResults.size(); i++) {
+            for (final Video video: videoResults) {
                 YouTubeVideo item = new YouTubeVideo();
                 //searchList list info
-                item.setTitle(searchResults.get(i).getSnippet().getTitle());
-                item.setThumbnailURL(searchResults.get(i).getSnippet().getThumbnails().getDefault().getUrl());
-                item.setId(searchResults.get(i).getId().getVideoId());
-                //video info
-                if (videoResults.get(i) != null) {
-                    BigInteger viewsNumber = videoResults.get(i).getStatistics().getViewCount();
-                    String viewsFormatted = NumberFormat.getIntegerInstance().format(viewsNumber) + " views";
-                    item.setViewCount(viewsFormatted);
-                    String isoTime = videoResults.get(i).getContentDetails().getDuration();
-                    String time = Utils.convertISO8601DurationToNormalTime(isoTime);
-                    item.setDuration(time);
-                } else {
-                    item.setDuration("NA");
-                }
+                item.setTitle(video.getSnippet().getTitle());
+                item.setThumbnailURL(video.getSnippet().getThumbnails().getDefault().getUrl());
+                item.setId(video.getId());
+
+                BigInteger viewsNumber = video.getStatistics().getViewCount();
+                String viewsFormatted = NumberFormat.getIntegerInstance().format(viewsNumber) + " views";
+                item.setViewCount(viewsFormatted);
+                String isoTime = video.getContentDetails().getDuration();
+                String time = Utils.convertISO8601DurationToNormalTime(isoTime);
+                item.setDuration(time);
 
                 //add to the list
                 items.add(item);

@@ -1,6 +1,8 @@
 package com.smedic.tubtub.youtube;
 
 import android.content.Context;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.content.AsyncTaskLoader;
 import android.util.Log;
 
@@ -12,6 +14,7 @@ import com.google.api.services.youtube.model.SearchListResponse;
 import com.google.api.services.youtube.model.SearchResult;
 import com.smedic.tubtub.model.YouTubePlaylist;
 import com.smedic.tubtub.utils.Config;
+import com.smedic.tubtub.utils.SearchType;
 import com.smedic.tubtub.utils.Utils;
 
 import java.io.IOException;
@@ -32,33 +35,54 @@ public class YouTubePlaylistsLoader extends AsyncTaskLoader<List<YouTubePlaylist
 
     private YouTube youtube = getYouTube();
     private String keywords;
+    private SearchType searchType;
 
-    public YouTubePlaylistsLoader(Context context, final String keyword) {
+    public YouTubePlaylistsLoader(Context context,
+                                  @NonNull final String keyword,
+                                  @NonNull final SearchType type) {
         super(context);
         this.keywords = keyword;
+        this.searchType = type;
+    }
+
+    @Nullable
+    private String ids() throws IOException {
+        switch ( searchType ) {
+            case BY_QUERY:
+                YouTube.Search.List searchList = youtube.search().list("id,snippet");
+                searchList.setKey(Config.YOUTUBE_API_KEY);
+                searchList.setType("playlist");
+                searchList.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
+                searchList.setFields("items(id/playlistId)");
+                searchList.setQ(keywords);
+
+                final SearchListResponse searchListResponse = searchList.execute();
+                final List<SearchResult> searchResults = searchListResponse.getItems();
+
+                return concatenateIDs(searchResults);
+
+            case BY_ID:
+                return keywords;
+            default:
+                return keywords;
+        }
     }
 
     @Override
     public List<YouTubePlaylist> loadInBackground() {
         try {
-            YouTube.Search.List searchList = youtube.search().list("id,snippet");
-            searchList.setKey(Config.YOUTUBE_API_KEY);
-            searchList.setType("playlist");
-            searchList.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
-            searchList.setFields("items(id/playlistId,snippet/title,snippet/thumbnails/default/url)");
-            searchList.setQ(keywords);
-
-            SearchListResponse searchListResponse = searchList.execute();
-            List<SearchResult> searchResults = searchListResponse.getItems();
+            final String id = ids();
+            if ( id == null || id.isEmpty() ) return Collections.emptyList();
 
             YouTube.Playlists.List playlistSearches = youtube.playlists().list("id,snippet,contentDetails,status");
             playlistSearches.setKey(Config.YOUTUBE_API_KEY);
             playlistSearches.setFields("items(id,snippet/title,snippet/thumbnails/default/url,contentDetails/itemCount,status)");
             playlistSearches.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
-            playlistSearches.setId(concatenateIDs(searchResults));  //save all ids from searchList list in order to find video list
-            PlaylistListResponse playListResponse = playlistSearches.execute();
+            playlistSearches.setId( id );
 
-            List<Playlist> playlists = playListResponse.getItems();
+            final PlaylistListResponse playListResponse = playlistSearches.execute();
+            final List<Playlist> playlists = playListResponse.getItems();
+
             if (playlists != null) {
 
                 Iterator<Playlist> iteratorPlaylistResults = playlists.iterator();
@@ -81,10 +105,6 @@ public class YouTubePlaylistsLoader extends AsyncTaskLoader<List<YouTubePlaylist
 
                 return youTubePlaylistList;
             }
-        } catch (UserRecoverableAuthIOException e) {
-            Log.d(TAG, "loadInBackground: exception REQUEST_AUTHORIZATION");
-            cancelLoad();
-            e.printStackTrace();
         } catch (IOException e) {
             Log.d(TAG, "loadInBackground: " + e.getMessage());
             cancelLoad();

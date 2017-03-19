@@ -16,7 +16,6 @@
 package com.smedic.tubtub;
 
 import android.Manifest;
-import android.accounts.AccountManager;
 import android.annotation.TargetApi;
 import android.app.SearchManager;
 import android.content.Context;
@@ -75,9 +74,14 @@ import java.util.List;
 import pub.devrel.easypermissions.AfterPermissionGranted;
 import pub.devrel.easypermissions.EasyPermissions;
 
-import static com.google.api.client.http.HttpMethods.HEAD;
 import static com.smedic.tubtub.R.layout.suggestions;
-import static com.smedic.tubtub.youtube.YouTubeSingleton.getCredential;
+
+enum Pane {
+    FAVOURITES,
+    RECENTLY_WATCHED,
+    SEARCH,
+    PLAYLIST
+}
 
 /**
  * Activity that manages fragments and action bar
@@ -93,10 +97,6 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
     private static final int PERMISSIONS = 1;
     private static final String PREF_BACKGROUND_COLOR = "BACKGROUND_COLOR";
     private static final String PREF_TEXT_COLOR = "TEXT_COLOR";
-    public static final String PREF_ACCOUNT_NAME = "accountName";
-
-    static final int REQUEST_ACCOUNT_PICKER = 1000;
-    static final int REQUEST_PERMISSION_GET_ACCOUNTS = 1003;
 
     private int initialColor = 0xffff0040;
     private int initialColors[] = new int[2];
@@ -190,7 +190,7 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
         if ( action.equals( Intent.ACTION_SEARCH ) ) {
             String query = intent.getStringExtra(SearchManager.QUERY);
 
-            viewPager.setCurrentItem(2, true); //switch to search fragment
+            viewPager.setCurrentItem(Pane.SEARCH.ordinal(), true); //switch to search fragment
 
             if ( searchFragment != null ) searchFragment.searchQuery( query );
             if ( playlistsFragment != null ) playlistsFragment.searchQuery( query );
@@ -199,11 +199,16 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
             final String url = intent.getStringExtra(Intent.EXTRA_TEXT);
             Log.d( TAG, "Intent received: " + url );
 
-            viewPager.setCurrentItem(2, true); //switch to search fragment
-
             final String id = Utils.extractId( url );
-            if ( id != null && searchFragment != null ) {
-                searchFragment.searchQuery( id );
+            if ( id == null ) return;
+
+            if ( url.contains("playlist") ) {
+                viewPager.setCurrentItem(Pane.PLAYLIST.ordinal(), true);
+                playlistsFragment.searchId( id );
+
+            } else if ( searchFragment != null ) {
+                viewPager.setCurrentItem(Pane.SEARCH.ordinal(), true);
+                searchFragment.searchId( id );
             }
         }
     }
@@ -379,38 +384,7 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
                 // this also disables onSuggestionClick triggering
                 if (query.length() > 2) { //make suggestions after 3rd letter
                     if (networkConf.isNetworkAvailable()) {
-
-                        getSupportLoaderManager().restartLoader(4, null, new LoaderManager.LoaderCallbacks<List<String>>() {
-                            @Override
-                            public Loader<List<String>> onCreateLoader(final int id, final Bundle args) {
-                                return new SuggestionsLoader(getApplicationContext(), query);
-                            }
-
-                            @Override
-                            public void onLoadFinished(Loader<List<String>> loader, List<String> data) {
-                                if (data == null)
-                                    return;
-                                suggestions.clear();
-                                suggestions.addAll(data);
-                                String[] columns = {
-                                        BaseColumns._ID,
-                                        SearchManager.SUGGEST_COLUMN_TEXT_1
-                                };
-                                MatrixCursor cursor = new MatrixCursor(columns);
-
-                                for (int i = 0; i < data.size(); i++) {
-                                    String[] tmp = {Integer.toString(i), data.get(i)};
-                                    cursor.addRow(tmp);
-                                }
-                                suggestionAdapter.swapCursor(cursor);
-                            }
-
-                            @Override
-                            public void onLoaderReset(Loader<List<String>> loader) {
-                                suggestions.clear();
-                                suggestions.addAll(Collections.<String>emptyList());
-                            }
-                        }).forceLoad();
+                        suggestionLoader(suggestions, suggestionAdapter, query).forceLoad();
                         return true;
                     }
                 }
@@ -419,6 +393,42 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
         });
 
         return true;
+    }
+
+    private Loader suggestionLoader(final List<String> suggestions,
+                                    final CursorAdapter suggestionAdapter,
+                                    final String query) {
+        return getSupportLoaderManager().restartLoader(4, null, new LoaderManager.LoaderCallbacks<List<String>>() {
+            @Override
+            public Loader<List<String>> onCreateLoader(final int id, final Bundle args) {
+                return new SuggestionsLoader(getApplicationContext(), query);
+            }
+
+            @Override
+            public void onLoadFinished(Loader<List<String>> loader, List<String> data) {
+                if (data == null)
+                    return;
+                suggestions.clear();
+                suggestions.addAll(data);
+                String[] columns = {
+                        BaseColumns._ID,
+                        SearchManager.SUGGEST_COLUMN_TEXT_1
+                };
+                MatrixCursor cursor = new MatrixCursor(columns);
+
+                for (int i = 0; i < data.size(); i++) {
+                    String[] tmp = {Integer.toString(i), data.get(i)};
+                    cursor.addRow(tmp);
+                }
+                suggestionAdapter.swapCursor(cursor);
+            }
+
+            @Override
+            public void onLoaderReset(Loader<List<String>> loader) {
+                suggestions.clear();
+                suggestions.addAll(Collections.<String>emptyList());
+            }
+        });
     }
 
     /**

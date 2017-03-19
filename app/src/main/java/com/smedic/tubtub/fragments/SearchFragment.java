@@ -36,6 +36,7 @@ import com.smedic.tubtub.interfaces.OnItemSelected;
 import com.smedic.tubtub.model.YouTubeVideo;
 import com.smedic.tubtub.utils.Config;
 import com.smedic.tubtub.utils.NetworkConf;
+import com.smedic.tubtub.utils.SearchType;
 import com.smedic.tubtub.youtube.YouTubeVideosLoader;
 
 import java.util.ArrayList;
@@ -96,7 +97,7 @@ public class SearchFragment extends BaseFragment implements ItemEventsListener<Y
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated( savedInstanceState );
-        searchQuery( queryInLine );
+        searchId( queryInLine );
     }
 
     @Override
@@ -125,11 +126,26 @@ public class SearchFragment extends BaseFragment implements ItemEventsListener<Y
      */
     public void searchQuery(final String query) {
         /* Never assume query param is valid string */
-        if (query == null) return;
+        if (query == null || getActivity() == null) return;
+
+        //check network connectivity
+        if (!networkConf.isNetworkAvailable()) {
+            networkConf.createNetErrorDialog();
+            return;
+        }
+
+        loadingProgressBar.setVisibility(View.VISIBLE);
+
+        videoSearch( query, SearchType.BY_QUERY ).forceLoad();
+    }
+
+    public void searchId(final String id) {
+        /* Never assume query param is valid string */
+        if (id == null) return;
 
         /* If this activity doesn't exist, wait until it gets created */
         if (getActivity() == null) {
-            queryInLine = query;
+            queryInLine = id;
             return;
         }
 
@@ -141,14 +157,14 @@ public class SearchFragment extends BaseFragment implements ItemEventsListener<Y
 
         loadingProgressBar.setVisibility(View.VISIBLE);
 
-        videoSearch( query ).forceLoad();
+        videoSearch( id, SearchType.BY_ID ).forceLoad();
     }
 
-    private Loader videoSearch(final String query) {
+    private Loader videoSearch(final String query, final SearchType searchType ) {
         return getLoaderManager().restartLoader(1, null, new LoaderManager.LoaderCallbacks<List<YouTubeVideo>>() {
             @Override
             public Loader<List<YouTubeVideo>> onCreateLoader(final int id, final Bundle args) {
-                return new YouTubeVideosLoader(context, query);
+                return new YouTubeVideosLoader(context, query, searchType);
             }
 
             @Override
