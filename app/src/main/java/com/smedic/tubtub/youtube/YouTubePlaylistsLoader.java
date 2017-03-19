@@ -8,8 +8,11 @@ import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecovera
 import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.Playlist;
 import com.google.api.services.youtube.model.PlaylistListResponse;
+import com.google.api.services.youtube.model.SearchListResponse;
+import com.google.api.services.youtube.model.SearchResult;
 import com.smedic.tubtub.model.YouTubePlaylist;
 import com.smedic.tubtub.utils.Config;
+import com.smedic.tubtub.utils.Utils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,26 +29,36 @@ import static com.smedic.tubtub.youtube.YouTubeSingleton.getYouTube;
 public class YouTubePlaylistsLoader extends AsyncTaskLoader<List<YouTubePlaylist>> {
 
     private static final String TAG = "SMEDIC";
-    private YouTube youtube = getYouTube();
 
-    public YouTubePlaylistsLoader(Context context) {
+    private YouTube youtube = getYouTube();
+    private String keywords;
+
+    public YouTubePlaylistsLoader(Context context, final String keyword) {
         super(context);
+        this.keywords = keyword;
     }
 
     @Override
     public List<YouTubePlaylist> loadInBackground() {
         try {
-            YouTube.Playlists.List searchList = youtube.playlists().list("id,snippet,contentDetails,status");
-
-            searchList.setId("PL08F79EB0B416E4BE"); // testing only
-
+            YouTube.Search.List searchList = youtube.search().list("id,snippet");
             searchList.setKey(Config.YOUTUBE_API_KEY);
-            searchList.setFields("items(id,snippet/title,snippet/thumbnails/default/url,contentDetails/itemCount,status)");
+            searchList.setType("playlist");
             searchList.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
+            searchList.setFields("items(id/playlistId,snippet/title,snippet/thumbnails/default/url)");
+            searchList.setQ(keywords);
 
-            PlaylistListResponse playListResponse = searchList.execute();
+            SearchListResponse searchListResponse = searchList.execute();
+            List<SearchResult> searchResults = searchListResponse.getItems();
+
+            YouTube.Playlists.List playlistSearches = youtube.playlists().list("id,snippet,contentDetails,status");
+            playlistSearches.setKey(Config.YOUTUBE_API_KEY);
+            playlistSearches.setFields("items(id,snippet/title,snippet/thumbnails/default/url,contentDetails/itemCount,status)");
+            playlistSearches.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
+            playlistSearches.setId(concatenateIDs(searchResults));  //save all ids from searchList list in order to find video list
+            PlaylistListResponse playListResponse = playlistSearches.execute();
+
             List<Playlist> playlists = playListResponse.getItems();
-
             if (playlists != null) {
 
                 Iterator<Playlist> iteratorPlaylistResults = playlists.iterator();
@@ -93,5 +106,32 @@ public class YouTubePlaylistsLoader extends AsyncTaskLoader<List<YouTubePlaylist
     public void onCanceled(List<YouTubePlaylist> data) {
         super.onCanceled(data);
         Log.d(TAG, "onCanceled: ");
+    }
+
+    /**
+     * Concatenates provided ids in order to search for all of them at once and not in many iterations (slower)
+     *
+     * @param searchResults results acquired from search query
+     * @return concatenated ids
+     */
+    private static String concatenateIDs(List<SearchResult> searchResults) {
+
+        StringBuilder contentDetails = new StringBuilder();
+        for (SearchResult result : searchResults) {
+            final String id = result.getId().getPlaylistId();
+            if (id != null) {
+                contentDetails.append(id);
+                contentDetails.append(",");
+            }
+        }
+
+        if (contentDetails.length() == 0) {
+            return null;
+        }
+
+        if (contentDetails.toString().endsWith(",")) {
+            contentDetails.setLength(contentDetails.length() - 1); //remove last ,
+        }
+        return contentDetails.toString();
     }
 }

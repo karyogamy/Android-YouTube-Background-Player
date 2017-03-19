@@ -104,6 +104,7 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
     private SearchFragment searchFragment;
     private RecentlyWatchedFragment recentlyPlayedFragment;
     private FavoritesFragment favoritesFragment;
+    private PlaylistsFragment playlistsFragment;
 
     private int[] tabIcons = {
             R.drawable.ic_action_heart,
@@ -144,21 +145,9 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
         handleIntent( getIntent() );
     }
 
-    /**
-     * Attempts to set the account used with the API credentials. If an account
-     * name was previously saved it will use that one; otherwise an account
-     * picker dialog will be shown to the user. Note that the setting the
-     * account to use with the credentials object requires the app to have the
-     * GET_ACCOUNTS permission, which is requested here if it is not already
-     * present. The AfterPermissionGranted annotation indicates that this
-     * function will be rerun automatically whenever the GET_ACCOUNTS permission
-     * is granted.
-     */
     @AfterPermissionGranted(PERMISSIONS)
     private void requestPermissions() {
-        final String[] perms = {
-                Manifest.permission.WAKE_LOCK
-        };
+        final String[] perms = { Manifest.permission.WAKE_LOCK };
 
         if (!EasyPermissions.hasPermissions(this, perms)) {
             // Do not have permissions, request them now
@@ -169,23 +158,10 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_ACCOUNT_PICKER) {
-            if (resultCode == RESULT_OK && data != null && data.getExtras() != null) {
-                String accountName = data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME);
-                if (accountName != null) {
-                    SharedPreferences settings = getPreferences(Context.MODE_PRIVATE);
-                    SharedPreferences.Editor editor = settings.edit();
-                    editor.putString(PREF_ACCOUNT_NAME, accountName);
-                    editor.apply();
-                    getCredential().setSelectedAccountName(accountName);
-                }
-            }
-        }
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String permissions[], @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this);
     }
@@ -211,15 +187,15 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
     private void handleIntent(Intent intent) {
         final String action = intent.getAction();
 
-        if (Intent.ACTION_SEARCH.equals( action )) {
+        if ( action.equals( Intent.ACTION_SEARCH ) ) {
             String query = intent.getStringExtra(SearchManager.QUERY);
 
             viewPager.setCurrentItem(2, true); //switch to search fragment
 
-            if (searchFragment != null) {
-                searchFragment.searchQuery(query);
-            }
-        } else if ( Intent.ACTION_SEND.equals( action ) ) {
+            if ( searchFragment != null ) searchFragment.searchQuery( query );
+            if ( playlistsFragment != null ) playlistsFragment.searchQuery( query );
+
+        } else if ( action.equals( Intent.ACTION_SEND ) ) {
             final String url = intent.getStringExtra(Intent.EXTRA_TEXT);
             Log.d( TAG, "Intent received: " + url );
 
@@ -254,7 +230,7 @@ public class MainActivity extends AppCompatActivity implements EasyPermissions.P
         searchFragment = SearchFragment.newInstance();
         recentlyPlayedFragment = RecentlyWatchedFragment.newInstance();
         favoritesFragment = FavoritesFragment.newInstance();
-        PlaylistsFragment playlistsFragment = PlaylistsFragment.newInstance();
+        playlistsFragment = PlaylistsFragment.newInstance();
 
         adapter.addFragment(favoritesFragment, null);
         adapter.addFragment(recentlyPlayedFragment, null);

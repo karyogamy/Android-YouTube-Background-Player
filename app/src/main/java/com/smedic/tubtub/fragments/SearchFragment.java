@@ -141,7 +141,11 @@ public class SearchFragment extends BaseFragment implements ItemEventsListener<Y
 
         loadingProgressBar.setVisibility(View.VISIBLE);
 
-        getLoaderManager().restartLoader(1, null, new LoaderManager.LoaderCallbacks<List<YouTubeVideo>>() {
+        videoSearch( query ).forceLoad();
+    }
+
+    private Loader videoSearch(final String query) {
+        return getLoaderManager().restartLoader(1, null, new LoaderManager.LoaderCallbacks<List<YouTubeVideo>>() {
             @Override
             public Loader<List<YouTubeVideo>> onCreateLoader(final int id, final Bundle args) {
                 return new YouTubeVideosLoader(context, query);
@@ -164,7 +168,7 @@ public class SearchFragment extends BaseFragment implements ItemEventsListener<Y
                 searchResultsList.addAll(Collections.<YouTubeVideo>emptyList());
                 videoListAdapter.notifyDataSetChanged();
             }
-        }).forceLoad();
+        });
     }
 
     @Override

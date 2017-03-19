@@ -26,6 +26,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ProgressBar;
 
 import com.smedic.tubtub.MainActivity;
 import com.smedic.tubtub.R;
@@ -36,6 +37,7 @@ import com.smedic.tubtub.interfaces.OnItemSelected;
 import com.smedic.tubtub.model.YouTubePlaylist;
 import com.smedic.tubtub.model.YouTubeVideo;
 import com.smedic.tubtub.utils.Config;
+import com.smedic.tubtub.utils.NetworkConf;
 import com.smedic.tubtub.youtube.YouTubePlaylistVideosLoader;
 import com.smedic.tubtub.youtube.YouTubePlaylistsLoader;
 
@@ -55,9 +57,14 @@ public class PlaylistsFragment extends BaseFragment implements
     private ArrayList<YouTubePlaylist> playlists;
     private RecyclerView playlistsListView;
     private PlaylistsAdapter playlistsAdapter;
-    private SwipeRefreshLayout swipeToRefresh;
+
+    private ProgressBar loadingProgressBar;
+
     private Context context;
     private OnItemSelected itemSelected;
+
+    private NetworkConf networkConf;
+    private String queryInLine;
 
     public PlaylistsFragment() {
         // Required empty public constructor
@@ -71,6 +78,7 @@ public class PlaylistsFragment extends BaseFragment implements
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         playlists = new ArrayList<>();
+        networkConf = new NetworkConf(getActivity());
     }
 
     @Override
@@ -81,19 +89,23 @@ public class PlaylistsFragment extends BaseFragment implements
         playlistsListView = (RecyclerView) v.findViewById(R.id.fragment_list_items);
         playlistsListView.setLayoutManager(new LinearLayoutManager(context));
 
-        swipeToRefresh = (SwipeRefreshLayout) v.findViewById(R.id.swipe_to_refresh);
+        loadingProgressBar = (ProgressBar) v.findViewById(R.id.fragment_progress_bar);
 
         playlistsAdapter = new PlaylistsAdapter(context, playlists);
         playlistsAdapter.setOnItemEventsListener(this);
         playlistsListView.setAdapter(playlistsAdapter);
 
-        swipeToRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
-            @Override
-            public void onRefresh() {
-                searchPlaylists();
-            }
-        });
+        //disable swipe to refresh for this tab
+        v.findViewById(R.id.swipe_to_refresh).setEnabled(false);
+
         return v;
+    }
+
+
+    @Override
+    public void onActivityCreated(Bundle savedInstanceState) {
+        super.onActivityCreated( savedInstanceState );
+        searchQuery( queryInLine );
     }
 
     @Override
@@ -120,19 +132,38 @@ public class PlaylistsFragment extends BaseFragment implements
         playlistsAdapter.notifyDataSetChanged();
     }
 
-    public void searchPlaylists() {
-        getLoaderManager().restartLoader(2, null, new LoaderManager.LoaderCallbacks<List<YouTubePlaylist>>() {
+    public void searchQuery(final String query) {
+        /* Never assume query param is valid string */
+        if (query == null) return;
+
+        /* If this activity doesn't exist, wait until it gets created */
+        if (getActivity() == null) {
+            queryInLine = query;
+            return;
+        }
+
+        //check network connectivity
+        if (!networkConf.isNetworkAvailable()) {
+            networkConf.createNetErrorDialog();
+            return;
+        }
+
+        loadingProgressBar.setVisibility(View.VISIBLE);
+
+        playlistSearch( query ).forceLoad();
+    }
+
+    private Loader playlistSearch(final String query) {
+        return getLoaderManager().restartLoader(2, null, new LoaderManager.LoaderCallbacks<List<YouTubePlaylist>>() {
             @Override
             public Loader<List<YouTubePlaylist>> onCreateLoader(final int id, final Bundle args) {
-                return new YouTubePlaylistsLoader(context);
+                return new YouTubePlaylistsLoader(context, query);
             }
 
             @Override
             public void onLoadFinished(Loader<List<YouTubePlaylist>> loader, List<YouTubePlaylist> data) {
-                if (data == null) {
-                    swipeToRefresh.setRefreshing(false);
-                    return;
-                }
+                if (data == null) return;
+
                 YouTubeSqlDb.getInstance().playlists().deleteAll();
                 for (YouTubePlaylist playlist : data) {
                     YouTubeSqlDb.getInstance().playlists().create(playlist);
@@ -143,12 +174,11 @@ public class PlaylistsFragment extends BaseFragment implements
                 playlists.clear();
                 playlists.addAll(data);
                 playlistsAdapter.notifyDataSetChanged();
-                swipeToRefresh.setRefreshing(false);
 
                 for (YouTubePlaylist playlist : playlists) {
                     Log.d(TAG, "onLoadFinished: >>> " + playlist.getTitle());
                 }
-
+                loadingProgressBar.setVisibility(View.INVISIBLE);
             }
 
             @Override
@@ -157,7 +187,7 @@ public class PlaylistsFragment extends BaseFragment implements
                 playlists.addAll(Collections.<YouTubePlaylist>emptyList());
                 playlistsAdapter.notifyDataSetChanged();
             }
-        }).forceLoad();
+        });
     }
 
     private void acquirePlaylistVideos(final String playlistId) {

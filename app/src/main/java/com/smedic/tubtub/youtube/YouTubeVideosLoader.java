@@ -44,7 +44,7 @@ public class YouTubeVideosLoader extends AsyncTaskLoader<List<YouTubeVideo>> {
             YouTube.Videos.List videosList = youtube.videos().list("id,contentDetails,statistics");
 
             searchList.setKey(Config.YOUTUBE_API_KEY);
-            searchList.setType("video"); //TODO ADD PLAYLISTS SEARCH
+            searchList.setType("video");
             searchList.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
             searchList.setFields("items(id/videoId,snippet/title,snippet/thumbnails/default/url)");
             searchList.setQ(keywords);
@@ -57,7 +57,7 @@ public class YouTubeVideosLoader extends AsyncTaskLoader<List<YouTubeVideo>> {
             List<SearchResult> searchResults = searchListResponse.getItems();
 
             //find video list
-            videosList.setId(Utils.concatenateIDs(searchResults));  //save all ids from searchList list in order to find video list
+            videosList.setId(concatenateIDs(searchResults));  //save all ids from searchList list in order to find video list
             VideoListResponse resp = videosList.execute();
             List<Video> videoResults = resp.getItems();
             //make items for displaying in listView
@@ -97,5 +97,32 @@ public class YouTubeVideosLoader extends AsyncTaskLoader<List<YouTubeVideo>> {
             return;
         }
         super.deliverResult(data);
+    }
+
+    /**
+     * Concatenates provided ids in order to search for all of them at once and not in many iterations (slower)
+     *
+     * @param searchResults results acquired from search query
+     * @return concatenated ids
+     */
+    private static String concatenateIDs(List<SearchResult> searchResults) {
+
+        StringBuilder contentDetails = new StringBuilder();
+        for (SearchResult result : searchResults) {
+            final String id = result.getId().getVideoId();
+            if (id != null) {
+                contentDetails.append(id);
+                contentDetails.append(",");
+            }
+        }
+
+        if (contentDetails.length() == 0) {
+            return null;
+        }
+
+        if (contentDetails.toString().endsWith(",")) {
+            contentDetails.setLength(contentDetails.length() - 1); //remove last ,
+        }
+        return contentDetails.toString();
     }
 }
