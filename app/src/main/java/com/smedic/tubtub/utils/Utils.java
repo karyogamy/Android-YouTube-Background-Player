@@ -106,7 +106,7 @@ public class Utils {
     /**
      * Extracts id from youtube share intent url
      *
-     * @param ytUrl youtube url containing the id, must be in youtu.be form
+     * @param ytUrl youtube url containing the id, see regex101.com/r/5BtZT1/1
      * @return the id for that url
      * */
     @Nullable
@@ -116,16 +116,11 @@ public class Utils {
 
         final Pattern pattern = Pattern.compile(
                 "^.*(youtu.be\\/|list=)([^#\\&\\?]*).*",
-                Pattern.CASE_INSENSITIVE);
+                Pattern.CASE_INSENSITIVE
+        );
         final Matcher matcher = pattern.matcher(ytUrl);
 
-        if ( matcher.matches() ) {
-            vId = matcher.group(2);
-
-            /* Since video search q parameter has other purposes for '-' and '|',
-             * id search under q should be enclosed in double quotes. */
-            vId = vId.replace('-', '*');
-        }
+        if ( matcher.matches() ) vId = matcher.group(2);
 
         return vId;
     }
