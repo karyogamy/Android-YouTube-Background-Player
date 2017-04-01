@@ -15,32 +15,28 @@
  */
 package com.smedic.tubtub.model;
 
-import java.io.Serializable;
-
 /**
  * YouTube playlist class
  * Created by Stevan Medic on 8.3.16..
  */
-public class YouTubePlaylist implements Serializable {
+public class YouTubePlaylist extends YoutubePlayable {
 
-    private String title;
-    private String thumbnailURL;
-    private String id;
     private long numberOfVideos;
     private String status;
 
     public YouTubePlaylist() {
-        this.title = "";
-        this.thumbnailURL = "";
-        this.id = "";
+        super();
         this.numberOfVideos = 0;
         this.status = "";
     }
 
-    public YouTubePlaylist(String title, String thumbnailURL, String id, long numberOfVideos, String status) {
-        this.title = title;
-        this.thumbnailURL = thumbnailURL;
-        this.id = id;
+    public YouTubePlaylist(final String title,
+                           final String thumbnailURL,
+                           final String id,
+                           final long numberOfVideos,
+                           final String status) {
+
+        super( id, title, thumbnailURL );
         this.numberOfVideos = numberOfVideos;
         this.status = status;
     }
@@ -51,30 +47,6 @@ public class YouTubePlaylist implements Serializable {
 
     public void setNumberOfVideos(long numberOfVideos) {
         this.numberOfVideos = numberOfVideos;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getThumbnailURL() {
-        return thumbnailURL;
-    }
-
-    public void setThumbnailURL(String thumbnail) {
-        this.thumbnailURL = thumbnail;
     }
 
     public String getStatus() {
@@ -88,8 +60,9 @@ public class YouTubePlaylist implements Serializable {
     @Override
     public String toString() {
         return "YouTubePlaylist {" +
-                "id='" + id + '\'' +
-                ", title='" + title + '\'' + ", number of videos=" + numberOfVideos +
+                "id='" + super.getId() + '\'' +
+                ", title='" + super.getTitle() + '\'' +
+                ", number of videos=" + numberOfVideos +
                 ", " + status +
                 '}';
     }

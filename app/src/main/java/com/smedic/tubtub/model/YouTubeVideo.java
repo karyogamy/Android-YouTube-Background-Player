@@ -15,49 +15,34 @@
  */
 package com.smedic.tubtub.model;
 
-import java.io.Serializable;
-
 /**
  * YouTube video class
  * Created by smedic on 3.2.16..
  */
-public class YouTubeVideo implements Serializable {
-    private String id;
-    private String title;
-    private String thumbnailURL;
+public class YouTubeVideo extends YoutubePlayable {
     private String duration;
     private String viewCount;
 
     public YouTubeVideo() {
-        this.id = "";
-        this.title = "";
-        this.thumbnailURL = "";
+        super();
         this.duration = "";
         this.viewCount = "";
     }
 
     public YouTubeVideo(YouTubeVideo newVideo) {
-        this.id = newVideo.id;
-        this.title = newVideo.title;
-        this.thumbnailURL = newVideo.thumbnailURL;
+        super( newVideo.getId(), newVideo.getTitle(), newVideo.getThumbnailURL() );
         this.duration = newVideo.duration;
         this.viewCount = newVideo.viewCount;
     }
 
-    public YouTubeVideo(String id, String title, String thumbnailURL, String duration, String viewCount) {
-        this.id = id;
-        this.title = title;
-        this.thumbnailURL = thumbnailURL;
+    public YouTubeVideo(final String id,
+                        final String title,
+                        final String thumbnailURL,
+                        final String duration,
+                        final String viewCount) {
+        super( id, title, thumbnailURL );
         this.duration = duration;
         this.viewCount = viewCount;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
     }
 
     public String getDuration() {
@@ -66,22 +51,6 @@ public class YouTubeVideo implements Serializable {
 
     public void setDuration(String duration) {
         this.duration = duration;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getThumbnailURL() {
-        return thumbnailURL;
-    }
-
-    public void setThumbnailURL(String thumbnail) {
-        this.thumbnailURL = thumbnail;
     }
 
     public String getViewCount() {
@@ -95,8 +64,8 @@ public class YouTubeVideo implements Serializable {
     @Override
     public String toString() {
         return "YouTubeVideo {" +
-                "id='" + id + '\'' +
-                ", title='" + title + '\'' +
+                "id='" + this.getId() + '\'' +
+                ", title='" + this.getTitle() + '\'' +
                 '}';
     }
 }
