@@ -128,7 +128,6 @@ public class RecentlyWatchedFragment extends BaseFragment implements
 
     @Override
     public void onItemClick(YouTubeVideo video) {
-        YouTubeSqlDb.getInstance().videos(YouTubeSqlDb.VIDEOS_TYPE.RECENTLY_WATCHED).create(video);
-        itemSelected.onVideoSelected(video);
+        itemSelected.onPlaylistSelected(recentlyPlayedVideos, recentlyPlayedVideos.indexOf(video));
     }
 }

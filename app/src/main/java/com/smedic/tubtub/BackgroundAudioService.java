@@ -191,6 +191,7 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
                 mediaType = ItemType.YOUTUBE_MEDIA_TYPE_PLAYLIST;
                 youTubeVideos = (ArrayList<YouTubeVideo>) intent.getSerializableExtra(Config.YOUTUBE_TYPE_PLAYLIST);
                 int startPosition = intent.getIntExtra(Config.YOUTUBE_TYPE_PLAYLIST_VIDEO_POS, 0);
+
                 iterator = youTubeVideos.listIterator(startPosition);
                 playNext();
                 break;
