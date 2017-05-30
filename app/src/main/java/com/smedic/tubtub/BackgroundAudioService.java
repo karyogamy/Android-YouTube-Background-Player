@@ -25,7 +25,6 @@ import android.graphics.drawable.Drawable;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -106,7 +105,7 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
         network = new NetworkConf( getApplicationContext() );
 
         mWifiLock = ((WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE))
-                .createWifiLock(WifiManager.WIFI_MODE_FULL, "tub_lock");
+                .createWifiLock(WifiManager.WIFI_MODE_FULL, "tub_wifi_lock");
 
         mMediaPlayer = new MediaPlayer();
         mMediaPlayer.setOnCompletionListener(this);
@@ -382,7 +381,6 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
     private void playNext() {
         //if media type is video not playlist, just loop it
         if (mediaType == ItemType.YOUTUBE_MEDIA_TYPE_VIDEO) {
-            seekVideo(0);
             restartVideo();
             return;
         }
@@ -455,16 +453,10 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
      * Restarts video
      */
     private void restartVideo() {
-        mMediaPlayer.start();
-    }
-
-    /**
-     * Seeks to specific time
-     *
-     * @param seekTo
-     */
-    private void seekVideo(int seekTo) {
-        mMediaPlayer.seekTo(seekTo);
+        if (mMediaPlayer != null) {
+            mMediaPlayer.seekTo(0);
+            mMediaPlayer.start();
+        }
     }
 
     /**
@@ -538,25 +530,26 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
                     Toast.LENGTH_SHORT
             ).show();
 
+            playNext();
+            buildNotification(generateAction(android.R.drawable.ic_media_pause, "Pause", ACTION_PAUSE));
             return;
         }
 
         final String id =      videoItem.getId();
         final String title =   videoItem.getTitle();
         final int    bitrate = ytFile.getFormat().getAudioBitrate();
+        final String message = "Starting: " + title + "(" + id+ ")" + ", quality: " + bitrate + "kbps.";
+        Log.d( TAG, message );
 
         try {
-            final String message = "Starting: " + title + "(" + id+ ")" + ", quality: " + bitrate + "kbps.";
-            Log.d( TAG, message );
             if (mMediaPlayer != null) {
                 mMediaPlayer.reset();
+                mMediaPlayer.setWakeMode( getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK );
                 mMediaPlayer.setDataSource(ytFile.getUrl());
                 mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-                mMediaPlayer.prepare();
+                mMediaPlayer.prepareAsync();
 
                 if ( !mWifiLock.isHeld() ) mWifiLock.acquire();
-
-                mMediaPlayer.start();
 
                 Toast.makeText(YTApplication.getAppContext(), message, Toast.LENGTH_SHORT).show();
             }
@@ -573,13 +566,14 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
 
     @Override
     public void onCompletion(MediaPlayer _mediaPlayer) {
-        if (isPlaylistStarting) {
-            isPlaylistStarting = false;
-            return;
-        }
 
         if (mediaType == ItemType.YOUTUBE_MEDIA_TYPE_PLAYLIST) {
-            playNext();
+            if (isPlaylistStarting) {
+                isPlaylistStarting = false;
+            } else {
+                playNext();
+            }
+
             buildNotification(generateAction(android.R.drawable.ic_media_pause, "Pause", ACTION_PAUSE));
         } else {
             restartVideo();
@@ -589,6 +583,6 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
     @Override
     public void onPrepared(MediaPlayer mp) {
         isStarting = false;
+        mp.start();
     }
-
 }

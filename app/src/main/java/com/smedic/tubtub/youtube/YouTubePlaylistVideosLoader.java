@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.StringJoiner;
 
 import static com.smedic.tubtub.youtube.YouTubeSingleton.getInstance;
 
@@ -30,7 +31,7 @@ import static com.smedic.tubtub.youtube.YouTubeSingleton.getInstance;
 public class YouTubePlaylistVideosLoader extends AsyncTaskLoader<List<YouTubeVideo>> {
 
     private final static String TAG = "SMEDIC";
-    private YouTube youtube = getInstance().getYouTube();
+    private YouTube youtube = YouTubeSingleton.getYouTube();
     private String playlistId;
 
     public YouTubePlaylistVideosLoader(Context context, String playlistId) {
@@ -47,13 +48,17 @@ public class YouTubePlaylistVideosLoader extends AsyncTaskLoader<List<YouTubeVid
         // Retrieve the playlist of the channel's uploaded videos.
         YouTube.PlaylistItems.List playlistItemRequest;
         try {
-            playlistItemRequest = youtube.playlistItems().list("id,contentDetails,snippet,status");
+            playlistItemRequest = youtube.playlistItems().list("id,contentDetails,snippet");
 
             playlistItemRequest.setPlaylistId(playlistId);
             playlistItemRequest.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
-            playlistItemRequest.setFields("items(contentDetails/videoId,snippet/title," +
-                    "snippet/thumbnails/default/url,status/privacyStatus),nextPageToken");
             playlistItemRequest.setKey(Config.YOUTUBE_API_KEY);
+
+            playlistItemRequest.setFields("items(" +
+                    "contentDetails/videoId," +
+                    "snippet/title," +
+                    "snippet/thumbnails/default/url)," +
+                    "nextPageToken");
 
             final PlaylistItemListResponse playlistItemResult = playlistItemRequest.execute();
             playlistItemList.addAll(playlistItemResult.getItems());
@@ -77,43 +82,38 @@ public class YouTubePlaylistVideosLoader extends AsyncTaskLoader<List<YouTubeVid
         }
 
         //videos to get duration
-        YouTube.Videos.List videosList = null;
+        List<Video> videoResults = Collections.emptyList();
         try {
-            videosList = youtube.videos().list("id,contentDetails");
+            YouTube.Videos.List videosList = youtube.videos().list("id,contentDetails");
+
             videosList.setKey(Config.YOUTUBE_API_KEY);
-            videosList.setFields("items(contentDetails/duration)");
+            videosList.setFields("items(id,contentDetails/duration)");
 
             //save all ids from searchList list in order to find video list
             StringBuilder contentDetails = new StringBuilder();
 
-            int ii = 0;
-            for (PlaylistItem result : playlistItemList) {
-                contentDetails.append(result.getContentDetails().getVideoId());
-                if (ii < playlistItemList.size() - 1)
-                    contentDetails.append(",");
-                ii++;
+            for ( int i = 0; i < playlistItemList.size(); i++ ) {
+                final PlaylistItem playlistItem = playlistItemList.get( i );
+                contentDetails.append( playlistItem.getContentDetails().getVideoId() );
+                if ( i < playlistItemList.size() - 1 ) contentDetails.append(",");
             }
             //find video list
             videosList.setId(contentDetails.toString());
+
+            videoResults = videosList.execute().getItems();
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        VideoListResponse resp = null;
-        try {
-            resp = videosList.execute();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        List<Video> videoResults = resp.getItems();
         Iterator<PlaylistItem> pit = playlistItemList.iterator();
         Iterator<Video> vit = videoResults.iterator();
+
         while (pit.hasNext()) {
             final PlaylistItem playlistItem = pit.next();
-            if (!playlistItem.getStatus().getPrivacyStatus().equals("public")) {
-                continue;
-            }
+
+            /* There is no good way of determining if a video is deleted other than string compare,
+             * thus, we omit those video items that do not contain a thumbnail.*/
+            if ( playlistItem.getSnippet().getThumbnails() == null ) continue;
 
             YouTubeVideo youTubeVideo = new YouTubeVideo();
             youTubeVideo.setId(playlistItem.getContentDetails().getVideoId());
@@ -122,12 +122,12 @@ public class YouTubePlaylistVideosLoader extends AsyncTaskLoader<List<YouTubeVid
 
             //video info
             final Video videoItem = vit.next();
-            if (videoItem != null) {
+            if (videoItem != null && videoItem.getId().equals( playlistItem.getContentDetails().getVideoId() )) {
                 String isoTime = videoItem.getContentDetails().getDuration();
                 String time = Utils.convertDuration(isoTime);
                 youTubeVideo.setDuration(time);
             } else {
-                youTubeVideo.setDuration("NA");
+                youTubeVideo.setDuration("N/A");
             }
             playlistItems.add(youTubeVideo);
         }
