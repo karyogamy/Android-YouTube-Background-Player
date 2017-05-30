@@ -91,6 +91,7 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
 
     private boolean nextWasCalled = false;
     private boolean previousWasCalled = false;
+    private boolean isPlaylistStarting = false;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -193,6 +194,7 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
                 int startPosition = intent.getIntExtra(Config.YOUTUBE_TYPE_PLAYLIST_VIDEO_POS, 0);
 
                 iterator = youTubeVideos.listIterator(startPosition);
+                isPlaylistStarting = true;
                 playNext();
                 break;
             default:
@@ -571,6 +573,11 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
 
     @Override
     public void onCompletion(MediaPlayer _mediaPlayer) {
+        if (isPlaylistStarting) {
+            isPlaylistStarting = false;
+            return;
+        }
+
         if (mediaType == ItemType.YOUTUBE_MEDIA_TYPE_PLAYLIST) {
             playNext();
             buildNotification(generateAction(android.R.drawable.ic_media_pause, "Pause", ACTION_PAUSE));

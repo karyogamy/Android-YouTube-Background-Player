@@ -47,12 +47,12 @@ public class YouTubePlaylistVideosLoader extends AsyncTaskLoader<List<YouTubeVid
         // Retrieve the playlist of the channel's uploaded videos.
         YouTube.PlaylistItems.List playlistItemRequest;
         try {
-            playlistItemRequest = youtube.playlistItems().list("id,contentDetails,snippet");
+            playlistItemRequest = youtube.playlistItems().list("id,contentDetails,snippet,status");
 
             playlistItemRequest.setPlaylistId(playlistId);
             playlistItemRequest.setMaxResults(Config.MAX_ALLOWED_RESULT_COUNT);
             playlistItemRequest.setFields("items(contentDetails/videoId,snippet/title," +
-                    "snippet/thumbnails/default/url),nextPageToken");
+                    "snippet/thumbnails/default/url,status/privacyStatus),nextPageToken");
             playlistItemRequest.setKey(Config.YOUTUBE_API_KEY);
 
             final PlaylistItemListResponse playlistItemResult = playlistItemRequest.execute();
@@ -110,14 +110,18 @@ public class YouTubePlaylistVideosLoader extends AsyncTaskLoader<List<YouTubeVid
         Iterator<PlaylistItem> pit = playlistItemList.iterator();
         Iterator<Video> vit = videoResults.iterator();
         while (pit.hasNext()) {
-            PlaylistItem playlistItem = pit.next();
-            Video videoItem = vit.next();
+            final PlaylistItem playlistItem = pit.next();
+            if (!playlistItem.getStatus().getPrivacyStatus().equals("public")) {
+                continue;
+            }
 
             YouTubeVideo youTubeVideo = new YouTubeVideo();
             youTubeVideo.setId(playlistItem.getContentDetails().getVideoId());
             youTubeVideo.setTitle(playlistItem.getSnippet().getTitle());
             youTubeVideo.setThumbnailURL(playlistItem.getSnippet().getThumbnails().getDefault().getUrl());
+
             //video info
+            final Video videoItem = vit.next();
             if (videoItem != null) {
                 String isoTime = videoItem.getContentDetails().getDuration();
                 String time = Utils.convertDuration(isoTime);
