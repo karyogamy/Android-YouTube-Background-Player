@@ -60,7 +60,7 @@ import at.huber.youtubeExtractor.YtFile;
  * Created by Stevan Medic on 9.3.16..
  */
 public class BackgroundAudioService extends Service implements MediaPlayer.OnCompletionListener,
-        MediaPlayer.OnPreparedListener {
+        MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener {
 
     private static final String TAG = "SMEDIC service";
 
@@ -81,16 +81,12 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
 
     private YouTubeVideo videoItem;
 
-    private boolean isStarting = false;
-
     private ArrayList<YouTubeVideo> youTubeVideos;
-    private ListIterator<YouTubeVideo> iterator;
+    private int videoIndex = 0;
 
     private NotificationCompat.Builder builder = null;
 
-    private boolean nextWasCalled = false;
-    private boolean previousWasCalled = false;
-    private boolean isPlaylistStarting = false;
+    private boolean isPrepared = false;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -110,6 +106,8 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
         mMediaPlayer = new MediaPlayer();
         mMediaPlayer.setOnCompletionListener(this);
         mMediaPlayer.setOnPreparedListener(this);
+        mMediaPlayer.setOnErrorListener(this);
+
         initMediaSessions();
         initPhoneCallListener();
     }
@@ -124,15 +122,18 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
         PhoneStateListener phoneStateListener = new PhoneStateListener() {
             @Override
             public void onCallStateChanged(int state, String incomingNumber) {
-                if (state == TelephonyManager.CALL_STATE_RINGING) {
-                    //Incoming call: Pause music
-                    pauseVideo();
-                } else if (state == TelephonyManager.CALL_STATE_IDLE) {
-                    //Not in call: Play music
-                    resumeVideo();
-                } else if (state == TelephonyManager.CALL_STATE_OFFHOOK) {
-                    //A call is dialing, active or on hold
+                switch ( state ) {
+                    case TelephonyManager.CALL_STATE_RINGING:
+                        pauseVideo();
+                        break;
+                    case TelephonyManager.CALL_STATE_IDLE:
+                        resumeVideo();
+                        break;
+                    case TelephonyManager.CALL_STATE_OFFHOOK:
+                    default:
+                        break;
                 }
+
                 super.onCallStateChanged(state, incomingNumber);
             }
         };
@@ -178,7 +179,7 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
         }
         switch (intentMediaType) {
             case YOUTUBE_MEDIA_NONE: //video is paused,so no new playback requests should be processed
-                mMediaPlayer.start();
+                playVideo();
                 break;
             case YOUTUBE_MEDIA_TYPE_VIDEO:
                 mediaType = ItemType.YOUTUBE_MEDIA_TYPE_VIDEO;
@@ -192,9 +193,9 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
                 youTubeVideos = (ArrayList<YouTubeVideo>) intent.getSerializableExtra(Config.YOUTUBE_TYPE_PLAYLIST);
                 int startPosition = intent.getIntExtra(Config.YOUTUBE_TYPE_PLAYLIST_VIDEO_POS, 0);
 
-                iterator = youTubeVideos.listIterator(startPosition);
-                isPlaylistStarting = true;
-                playNext();
+                videoItem = youTubeVideos.get(startPosition);
+                videoIndex = startPosition;
+                playVideo();
                 break;
             default:
                 Log.d(TAG, "Unknown command");
@@ -206,13 +207,6 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
      * Initializes media sessions and receives media events
      */
     private void initMediaSessions() {
-        // Make sure the media player will acquire a wake-lock while playing. If we don't do
-        // that, the CPU might go to sleep while the song is playing, causing playback to stop.
-        //
-        // Remember that to use this, we have to declare the android.permission.WAKE_LOCK
-        // permission in AndroidManifest.xml.
-        mMediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
-
         PendingIntent buttonReceiverIntent = PendingIntent.getBroadcast(
                 getApplicationContext(),
                 0,
@@ -245,18 +239,14 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
                         @Override
                         public void onSkipToNext() {
                             super.onSkipToNext();
-                            if (!isStarting) {
-                                playNext();
-                            }
+                            playNext();
                             buildNotification(generateAction(android.R.drawable.ic_media_pause, "Pause", ACTION_PAUSE));
                         }
 
                         @Override
                         public void onSkipToPrevious() {
                             super.onSkipToPrevious();
-                            if (!isStarting) {
-                                playPrevious();
-                            }
+                            playPrevious();
                             buildNotification(generateAction(android.R.drawable.ic_media_pause, "Pause", ACTION_PAUSE));
                         }
 
@@ -385,17 +375,13 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
             return;
         }
 
-        if (previousWasCalled) {
-            previousWasCalled = false;
-            iterator.next();
+        if ( videoIndex < youTubeVideos.size() - 1 ) {
+            videoIndex++;
+        } else {
+            videoIndex = 0;
         }
 
-        if (!iterator.hasNext()) {
-            iterator = youTubeVideos.listIterator();
-        }
-
-        videoItem = iterator.next();
-        nextWasCalled = true;
+        videoItem = youTubeVideos.get( videoIndex );
         playVideo();
     }
 
@@ -409,17 +395,13 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
             return;
         }
 
-        if (nextWasCalled) {
-            iterator.previous();
-            nextWasCalled = false;
+        if ( videoIndex > 0 ) {
+            videoIndex--;
+        } else {
+            videoIndex = youTubeVideos.size() - 1;
         }
 
-        if (!iterator.hasPrevious()) {
-            iterator = youTubeVideos.listIterator(youTubeVideos.size());
-        }
-
-        videoItem = iterator.previous();
-        previousWasCalled = true;
+        videoItem = youTubeVideos.get( videoIndex );
         playVideo();
     }
 
@@ -427,15 +409,14 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
      * Plays video
      */
     private void playVideo() {
-        isStarting = true;
-        extractUrlAndPlay();
+        playURL();
     }
 
     /**
      * Pauses video
      */
     private void pauseVideo() {
-        if (mMediaPlayer.isPlaying()) {
+        if (mMediaPlayer != null && mMediaPlayer.isPlaying() && isPrepared) {
             mMediaPlayer.pause();
         }
     }
@@ -444,7 +425,7 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
      * Resumes video
      */
     private void resumeVideo() {
-        if (mMediaPlayer != null) {
+        if (mMediaPlayer != null && !mMediaPlayer.isPlaying() && isPrepared) {
             mMediaPlayer.start();
         }
     }
@@ -455,7 +436,7 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
     private void restartVideo() {
         if (mMediaPlayer != null) {
             mMediaPlayer.seekTo(0);
-            mMediaPlayer.start();
+            mMediaPlayer.prepareAsync();
         }
     }
 
@@ -463,6 +444,8 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
      * Stops video
      */
     private void stopPlayer() {
+        isPrepared = false;
+
         mMediaPlayer.stop();
         mMediaPlayer.release();
         mMediaPlayer = null;
@@ -509,7 +492,7 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
     /**
      * Extracts link from youtube video ID, so mediaPlayer can play it
      */
-    private void extractUrlAndPlay() {
+    private void playURL() {
         final String youtubeLink = Config.YOUTUBE_BASE_URL + videoItem.getId();
 
         new YouTubeExtractor(this) {
@@ -544,7 +527,14 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
         try {
             if (mMediaPlayer != null) {
                 mMediaPlayer.reset();
-                mMediaPlayer.setWakeMode( getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK );
+                isPrepared = false;
+
+                // Make sure the media player will acquire a wake-lock while playing. If we don't do
+                // that, the CPU might go to sleep while the song is playing, causing playback to stop.
+                //
+                // Remember that to use this, we have to declare the android.permission.WAKE_LOCK
+                // permission in AndroidManifest.xml.
+                mMediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
                 mMediaPlayer.setDataSource(ytFile.getUrl());
                 mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
                 mMediaPlayer.prepareAsync();
@@ -566,14 +556,8 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
 
     @Override
     public void onCompletion(MediaPlayer _mediaPlayer) {
-
         if (mediaType == ItemType.YOUTUBE_MEDIA_TYPE_PLAYLIST) {
-            if (isPlaylistStarting) {
-                isPlaylistStarting = false;
-            } else {
-                playNext();
-            }
-
+            playNext();
             buildNotification(generateAction(android.R.drawable.ic_media_pause, "Pause", ACTION_PAUSE));
         } else {
             restartVideo();
@@ -582,7 +566,17 @@ public class BackgroundAudioService extends Service implements MediaPlayer.OnCom
 
     @Override
     public void onPrepared(MediaPlayer mp) {
-        isStarting = false;
+        isPrepared = true;
         mp.start();
+    }
+
+
+    @Override
+    public boolean onError(MediaPlayer mp, int what, int extra) {
+        isPrepared = false;
+        playNext();
+
+        Log.e(TAG, "Mediaplayer failed with code " + what + ", extra info code: " + extra + ".");
+        return true;
     }
 }
